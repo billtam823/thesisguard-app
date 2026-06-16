@@ -7,6 +7,7 @@ export type Stock = {
   provider_ticker?: string | null;
   company_name: string;
   status: StockStatus | string;
+  review_status?: "RUNNING" | "FAILED" | null;
   created_at: string;
   updated_at: string;
 };
@@ -15,6 +16,11 @@ export type StockCreateRequest = {
   ticker: string;
   companyName: string;
   exchange?: string;
+};
+
+export type StockSearchMatch = {
+  symbol: string;
+  name: string;
 };
 
 export type StockThesis = {
@@ -34,6 +40,8 @@ export type StockThesis = {
   main_risks: string;
   thesis_break_triggers: string;
   daily_review_focus: string;
+  generation_status?: "RUNNING" | "DONE" | "FAILED" | null;
+  generation_error?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -45,6 +53,11 @@ export type NewsItem = {
   summary?: string | null;
   url?: string | null;
   published_date?: string | null;
+  source?: string | null;
+  reviewed_at?: string | null;
+  impact_level?: string | null;
+  related_to_stock?: boolean | null;
+  analysis?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -54,6 +67,7 @@ export type NewsCreateRequest = {
   summary?: string | null;
   url?: string | null;
   published_date?: string | null;
+  source?: string | null;
 };
 
 export type FetchedNewsItem = {
@@ -82,6 +96,20 @@ export type DailyNewsReview = {
   thesis_impact: string;
   recommended_action: string;
   news_analysis: NewsAnalysisItem[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type AutoReviewResult = {
+  new_items_count: number;
+  review?: DailyNewsReview | null;
+};
+
+export type ThesisMonitorMemory = {
+  id: number;
+  stock_id: number;
+  memory_text: string;
+  previous_memory_text?: string | null;
   created_at: string;
   updated_at: string;
 };

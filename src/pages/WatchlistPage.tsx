@@ -1,16 +1,42 @@
-import { Add } from "@mui/icons-material";
-import { Button, Card, CardActionArea, CardContent, Grid, Stack, Typography } from "@mui/material";
-import { useQuery } from "@tanstack/react-query";
+import { Add, DeleteOutline } from "@mui/icons-material";
+import {
+  Button,
+  Card,
+  CardActionArea,
+  CardActions,
+  CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Grid,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { stockApi } from "../api/stockApi";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { StatusChip } from "../components/StatusChip";
+import type { Stock } from "../types";
 
 export function WatchlistPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const stocksQuery = useQuery({ queryKey: ["stocks"], queryFn: stockApi.getStocks });
+  const [pendingRemoval, setPendingRemoval] = useState<Stock | null>(null);
+
+  const removeStock = useMutation({
+    mutationFn: (stockCode: string) => stockApi.deleteStock(stockCode),
+    onSuccess: () => {
+      setPendingRemoval(null);
+      queryClient.invalidateQueries({ queryKey: ["stocks"] });
+    },
+  });
 
   if (stocksQuery.isLoading) {
     return <LoadingState text="Loading watchlist..." />;
@@ -38,8 +64,8 @@ export function WatchlistPage() {
         <Grid container spacing={2}>
           {stocksQuery.data?.map((stock) => (
             <Grid item xs={12} md={6} lg={4} key={stock.id}>
-              <Card variant="outlined" sx={{ borderRadius: 2, height: "100%" }}>
-                <CardActionArea sx={{ height: "100%" }} onClick={() => navigate(`/stocks/${stock.stock_code}`)}>
+              <Card variant="outlined" sx={{ borderRadius: 2, height: "100%", display: "flex", flexDirection: "column" }}>
+                <CardActionArea sx={{ flexGrow: 1 }} onClick={() => navigate(`/stocks/${stock.stock_code}`)}>
                   <CardContent>
                     <Stack spacing={2}>
                       <Stack direction="row" justifyContent="space-between" spacing={2}>
@@ -53,11 +79,49 @@ export function WatchlistPage() {
                     </Stack>
                   </CardContent>
                 </CardActionArea>
+                <CardActions sx={{ justifyContent: "flex-end", px: 2, pb: 1.5, pt: 0 }}>
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<DeleteOutline />}
+                    onClick={() => setPendingRemoval(stock)}
+                  >
+                    Remove
+                  </Button>
+                </CardActions>
               </Card>
             </Grid>
           ))}
         </Grid>
       )}
+
+      <Dialog open={Boolean(pendingRemoval)} onClose={() => !removeStock.isPending && setPendingRemoval(null)}>
+        <DialogTitle>Remove {pendingRemoval?.stock_code} from the watchlist?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This permanently deletes {pendingRemoval?.company_name} along with its saved thesis, news, daily reviews, and
+            alerts. This cannot be undone.
+          </DialogContentText>
+          {removeStock.isError && (
+            <Stack sx={{ mt: 2 }}>
+              <ErrorState error={removeStock.error} />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingRemoval(null)} disabled={removeStock.isPending}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => pendingRemoval && removeStock.mutate(pendingRemoval.stock_code)}
+            disabled={removeStock.isPending}
+          >
+            {removeStock.isPending ? "Removing…" : "Remove"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
