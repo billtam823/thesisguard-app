@@ -42,6 +42,8 @@ export type StockThesis = {
   main_risks: string;
   thesis_break_triggers: string;
   daily_review_focus: string;
+  return_multiple?: string | null;
+  return_basis?: string | null;
   generation_status?: "RUNNING" | "DONE" | "FAILED" | null;
   generation_error?: string | null;
   created_at: string;

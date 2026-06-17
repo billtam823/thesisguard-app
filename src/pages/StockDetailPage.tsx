@@ -46,6 +46,7 @@ const verdictFields: Array<[keyof StockThesis, string]> = [
   ["final_rating", "Final Rating"],
   ["conviction", "Conviction"],
   ["portfolio_role", "Portfolio Role"],
+  ["return_multiple", "Return Forecast"],
 ];
 
 const pillarFields: Array<[keyof StockThesis, string]> = [
@@ -455,7 +456,7 @@ export function StockDetailPage() {
                 pt: 2.5,
                 borderTop: "1px solid rgba(255,255,255,0.18)",
                 display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
                 gap: 2.5,
               }}
             >
@@ -536,6 +537,37 @@ export function StockDetailPage() {
                 </Box>
               ))}
             </Box>
+
+            {/* Growth forecast — the 5-7 year return estimate */}
+            {(thesis.return_multiple || thesis.return_basis) && (
+              <Box sx={{ bgcolor: "#eef2fb", border: "1px solid #c9d4ec", borderRadius: 2, p: { xs: 2.5, sm: 3 } }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: thesis.return_basis ? 1.5 : 0 }}>
+                  <Typography sx={{ fontFamily: mono, fontSize: 11.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "#3f5074" }}>
+                    Growth Forecast · 5-7 yr
+                  </Typography>
+                  {thesis.return_multiple && (
+                    <Chip
+                      size="small"
+                      label={thesis.return_multiple}
+                      sx={{ fontFamily: mono, fontWeight: 700, letterSpacing: "0.04em", bgcolor: "#2f4374", color: "#fff" }}
+                    />
+                  )}
+                </Stack>
+                {thesis.return_basis && (
+                  <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 0, listStyle: "none" }}>
+                    {thesis.return_basis
+                      .split(/\r?\n/)
+                      .map((line) => line.trim())
+                      .filter(Boolean)
+                      .map((line, i) => (
+                        <Typography component="li" key={i} sx={{ fontSize: 13.5, lineHeight: 1.6, color: "#3a4356" }}>
+                          {line}
+                        </Typography>
+                      ))}
+                  </Stack>
+                )}
+              </Box>
+            )}
 
             {/* Risk watch panel */}
             <Box sx={{ bgcolor: "#fdf7ee", border: "1px solid #ecd9b8", borderRadius: 2, p: { xs: 2.5, sm: 3 } }}>
