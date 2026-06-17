@@ -23,4 +23,8 @@ export const stockApi = {
   deleteStock: async (stockCode: string) => {
     await axiosClient.delete(`/api/watchlist/stocks/${stockCode}`);
   },
+  refreshProfile: async (stockCode: string) => {
+    const { data } = await axiosClient.post<Stock>(`/api/watchlist/stocks/${stockCode}/refresh-profile`);
+    return data;
+  },
 };

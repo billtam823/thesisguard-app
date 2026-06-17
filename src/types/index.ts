@@ -6,6 +6,8 @@ export type Stock = {
   exchange?: string | null;
   provider_ticker?: string | null;
   company_name: string;
+  sector?: string | null;
+  industry?: string | null;
   status: StockStatus | string;
   review_status?: "RUNNING" | "FAILED" | null;
   created_at: string;

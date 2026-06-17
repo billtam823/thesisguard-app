@@ -1,4 +1,4 @@
-import { Add, DeleteOutline } from "@mui/icons-material";
+import { Add, DeleteOutline, Refresh } from "@mui/icons-material";
 import {
   Button,
   Card,
@@ -29,6 +29,17 @@ export function WatchlistPage() {
   const queryClient = useQueryClient();
   const stocksQuery = useQuery({ queryKey: ["stocks"], queryFn: stockApi.getStocks });
   const [pendingRemoval, setPendingRemoval] = useState<Stock | null>(null);
+  const [refreshingId, setRefreshingId] = useState<number | null>(null);
+
+  const refreshProfile = useMutation({
+    mutationFn: (stockCode: string) => stockApi.refreshProfile(stockCode),
+    onMutate: (stockCode) => {
+      const stock = stocksQuery.data?.find((s) => s.stock_code === stockCode);
+      if (stock) setRefreshingId(stock.id);
+    },
+    onSettled: () => setRefreshingId(null),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["stocks"] }),
+  });
 
   const removeStock = useMutation({
     mutationFn: (stockCode: string) => stockApi.deleteStock(stockCode),
@@ -75,11 +86,21 @@ export function WatchlistPage() {
                         <StatusChip status={stock.status} />
                       </Stack>
                       <Typography fontWeight={700}>{stock.company_name}</Typography>
-                      <Typography color="text.secondary">Sector and theme are not returned by the current API.</Typography>
+                      <Typography color="text.secondary">
+                        {[stock.sector, stock.industry].filter(Boolean).join(" · ") || "—"}
+                      </Typography>
                     </Stack>
                   </CardContent>
                 </CardActionArea>
-                <CardActions sx={{ justifyContent: "flex-end", px: 2, pb: 1.5, pt: 0 }}>
+                <CardActions sx={{ justifyContent: "space-between", px: 2, pb: 1.5, pt: 0 }}>
+                  <Button
+                    size="small"
+                    startIcon={<Refresh />}
+                    onClick={() => refreshProfile.mutate(stock.stock_code)}
+                    disabled={refreshingId === stock.id}
+                  >
+                    {refreshingId === stock.id ? "Refreshing…" : "Refresh Profile"}
+                  </Button>
                   <Button
                     size="small"
                     color="error"
