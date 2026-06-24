@@ -1,5 +1,7 @@
 # ThesisGuard App
 
+**Live demo:** https://thesisguard.kingheung.com — a deployed instance of this app (see [Deploy to Dokploy](#deploy-to-dokploy)).
+
 ThesisGuard is a React frontend for a long-term buy-and-hold stock monitoring workflow. It connects to the Spring Boot `thesisguard-api` backend to manage watchlist stocks, generate buy theses, retrieve stored news and SEC activity, review news against a saved thesis, and resolve alerts.
 
 The core review action is **Auto Review**: one click fetches the latest headlines, SEC 8-K filings, and Form 4 insider trades, saves anything not already on file (deduplicated), and runs the AI over every unreviewed item against the saved thesis. Each review also updates a per-stock **monitoring journal** — an AI-maintained digest of durable findings tied to the thesis's kill-criteria and watch items, carried into every future review so multi-day developments are judged in context rather than in isolation.
@@ -136,7 +138,7 @@ Repositories:
 
 ### Topology — one host, path-routed
 
-Both apps share one host (`your-domain.com` is a placeholder throughout — substitute your real domain); Traefik routes by path:
+Both apps share one host (`your-domain.com` is a placeholder throughout — substitute your real domain; the live demo uses `thesisguard.kingheung.com`); Traefik routes by path:
 
 | Path | Served by |
 |------|-----------|
