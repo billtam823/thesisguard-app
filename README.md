@@ -123,11 +123,11 @@ http://localhost:5173
 http://127.0.0.1:5173
 ```
 
-In production CORS does not apply: the frontend and API are served from the **same origin** (`https://thesisguard.kingheung.com`, with the API under `/api`), so every request is same-origin. See [Deploy to Dokploy](#deploy-to-dokploy).
+In production the frontend and API share one origin (`https://thesisguard.kingheung.com`, API under `/api`), so the browser runs no CORS preflight. **Spring still enforces CORS server-side, though:** browsers send an `Origin` header on same-origin POST/PUT/DELETE, so the backend must allowlist `https://thesisguard.kingheung.com` in its `CorsConfig` or writes fail with `Invalid CORS request`. See [Deploy to Dokploy](#deploy-to-dokploy).
 
 ## Deploy to Dokploy
 
-The frontend deploys to [Dokploy](https://dokploy.com) as a static Vite build served by nginx, on the **same origin** as the API — so no CORS is involved.
+The frontend deploys to [Dokploy](https://dokploy.com) as a static Vite build served by nginx, on the **same origin** as the API (no browser CORS preflight; the API still allowlists this origin server-side — see CORS note below).
 
 Repositories:
 
@@ -143,7 +143,7 @@ Both apps share the host `thesisguard.kingheung.com`; Traefik routes by path:
 | `thesisguard.kingheung.com/api/*` | the API app (port 8080) |
 | `thesisguard.kingheung.com/*` | this frontend app (nginx, port 80) |
 
-Because the page and its API calls share scheme + host + port, requests are same-origin and CORS never applies.
+Because the page and its API calls share scheme + host + port, the browser runs no CORS preflight. The API still allowlists `https://thesisguard.kingheung.com` in `CorsConfig` — browsers send an `Origin` header on same-origin POST/PUT/DELETE, and Spring validates it server-side.
 
 ### Build
 
