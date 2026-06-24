@@ -19,17 +19,10 @@ The core review action is **Auto Review**: one click fetches the latest headline
 - Node.js and npm
 - ThesisGuard backend running locally at `http://localhost:8080`
 
-Backend project:
+## Repositories
 
-```text
-C:\Users\bill.tam\workspace\thesisguard-api
-```
-
-Frontend project:
-
-```text
-C:\Users\bill.tam\workspace\thesisguard-app
-```
+- Frontend: https://github.com/billtam823/thesisguard-app
+- Backend (API): https://github.com/billtam823/thesisguard-api
 
 ## Setup
 
@@ -121,14 +114,62 @@ GET /api/stocks/NVDA/news/insider
 
 `POST /api/stocks/{stockCode}/review-news` reviews only the items still pending (no fetch step). `GET /api/stocks/{stockCode}/monitor-memory` returns the AI's accumulated monitoring journal for the stock (`404` until the first substantive review), shown in a collapsible panel on the detail page.
 
-## CORS
+## CORS (local dev only)
 
-The Spring Boot backend must allow the Vite development origin:
+For local development the Spring Boot backend must allow the Vite dev origin:
 
 ```text
 http://localhost:5173
 http://127.0.0.1:5173
 ```
+
+In production CORS does not apply: the frontend and API are served from the **same origin** (`https://thesisguard.kingheung.com`, with the API under `/api`), so every request is same-origin. See [Deploy to Dokploy](#deploy-to-dokploy).
+
+## Deploy to Dokploy
+
+The frontend deploys to [Dokploy](https://dokploy.com) as a static Vite build served by nginx, on the **same origin** as the API — so no CORS is involved.
+
+Repositories:
+
+- Frontend: https://github.com/billtam823/thesisguard-app
+- Backend (API): https://github.com/billtam823/thesisguard-api
+
+### Topology — one host, path-routed
+
+Both apps share the host `thesisguard.kingheung.com`; Traefik routes by path:
+
+| Path | Served by |
+|------|-----------|
+| `thesisguard.kingheung.com/api/*` | the API app (port 8080) |
+| `thesisguard.kingheung.com/*` | this frontend app (nginx, port 80) |
+
+Because the page and its API calls share scheme + host + port, requests are same-origin and CORS never applies.
+
+### Build
+
+The repo ships a multi-stage `Dockerfile`: a Node stage runs `npm ci && npm run build` (Vite emits static files to `dist/`), then an `nginx:alpine` stage serves them with an SPA fallback (`try_files $uri /index.html`, in `nginx.conf`) so client-side routes survive a page refresh.
+
+`VITE_API_BASE_URL` is inlined by Vite **at build time**, so it must be supplied as a build argument — and it must be the **host only, without `/api`**, because the app already prefixes every call with `/api`:
+
+- ✅ `VITE_API_BASE_URL=https://thesisguard.kingheung.com` → `https://thesisguard.kingheung.com/api/...`
+- ❌ `VITE_API_BASE_URL=https://thesisguard.kingheung.com/api` → `.../api/api/...` (double `/api`)
+
+### Steps
+
+**API app** (already deployed) — add a route so `/api` resolves on the shared host:
+
+1. Open the API application (https://github.com/billtam823/thesisguard-api) in Dokploy → Domains.
+2. Add: Host `thesisguard.kingheung.com`, Path `/api`, **Strip Path OFF**, Container Port `8080`, HTTPS on.
+
+**Frontend app** (new):
+
+1. Create an Application from https://github.com/billtam823/thesisguard-app, branch `main`, Build Type **Dockerfile**.
+2. Set the build variable `VITE_API_BASE_URL=https://thesisguard.kingheung.com` (host only).
+3. Container Port `80`.
+4. Domain `thesisguard.kingheung.com`, Path `/`, HTTPS on.
+5. Deploy.
+
+Then open `https://thesisguard.kingheung.com` — the SPA loads, and its `/api/...` calls hit the backend on the same origin.
 
 ## Example User Flow
 
