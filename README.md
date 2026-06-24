@@ -123,7 +123,7 @@ http://localhost:5173
 http://127.0.0.1:5173
 ```
 
-In production the frontend and API share one origin (`https://thesisguard.kingheung.com`, API under `/api`), so the browser runs no CORS preflight. **Spring still enforces CORS server-side, though:** browsers send an `Origin` header on same-origin POST/PUT/DELETE, so the backend must allowlist `https://thesisguard.kingheung.com` in its `CorsConfig` or writes fail with `Invalid CORS request`. See [Deploy to Dokploy](#deploy-to-dokploy).
+In production the frontend and API share one origin (`https://your-domain.com`, API under `/api`), so the browser runs no CORS preflight. **Spring still enforces CORS server-side, though:** browsers send an `Origin` header on same-origin POST/PUT/DELETE, so the backend must allowlist `https://your-domain.com` in its `CorsConfig` or writes fail with `Invalid CORS request`. See [Deploy to Dokploy](#deploy-to-dokploy).
 
 ## Deploy to Dokploy
 
@@ -136,14 +136,14 @@ Repositories:
 
 ### Topology — one host, path-routed
 
-Both apps share the host `thesisguard.kingheung.com`; Traefik routes by path:
+Both apps share one host (`your-domain.com` is a placeholder throughout — substitute your real domain); Traefik routes by path:
 
 | Path | Served by |
 |------|-----------|
-| `thesisguard.kingheung.com/api/*` | the API app (port 8080) |
-| `thesisguard.kingheung.com/*` | this frontend app (nginx, port 80) |
+| `your-domain.com/api/*` | the API app (port 8080) |
+| `your-domain.com/*` | this frontend app (nginx, port 80) |
 
-Because the page and its API calls share scheme + host + port, the browser runs no CORS preflight. The API still allowlists `https://thesisguard.kingheung.com` in `CorsConfig` — browsers send an `Origin` header on same-origin POST/PUT/DELETE, and Spring validates it server-side.
+Because the page and its API calls share scheme + host + port, the browser runs no CORS preflight. The API still allowlists `https://your-domain.com` in `CorsConfig` — browsers send an `Origin` header on same-origin POST/PUT/DELETE, and Spring validates it server-side.
 
 ### Build
 
@@ -151,25 +151,26 @@ The repo ships a multi-stage `Dockerfile`: a Node stage runs `npm ci && npm run 
 
 `VITE_API_BASE_URL` is inlined by Vite **at build time**, so it must be supplied as a build argument — and it must be the **host only, without `/api`**, because the app already prefixes every call with `/api`:
 
-- ✅ `VITE_API_BASE_URL=https://thesisguard.kingheung.com` → `https://thesisguard.kingheung.com/api/...`
-- ❌ `VITE_API_BASE_URL=https://thesisguard.kingheung.com/api` → `.../api/api/...` (double `/api`)
+- ✅ `VITE_API_BASE_URL=https://your-domain.com` → `https://your-domain.com/api/...`
+- ❌ `VITE_API_BASE_URL=https://your-domain.com/api` → `.../api/api/...` (double `/api`)
 
 ### Steps
 
 **API app** (already deployed) — add a route so `/api` resolves on the shared host:
 
 1. Open the API application (https://github.com/billtam823/thesisguard-api) in Dokploy → Domains.
-2. Add: Host `thesisguard.kingheung.com`, Path `/api`, **Strip Path OFF**, Container Port `8080`, HTTPS on.
+2. Add: Host `your-domain.com`, Path `/api`, **Strip Path OFF**, Container Port `8080`, HTTPS on.
+3. Allowlist your origin in the API's `CorsConfig` (`https://your-domain.com`) — same-origin writes still carry an `Origin` header that Spring validates, so without this the POST/PUT/DELETE calls fail with `Invalid CORS request`.
 
 **Frontend app** (new):
 
 1. Create an Application from https://github.com/billtam823/thesisguard-app, branch `main`, Build Type **Dockerfile**.
-2. Set the build variable `VITE_API_BASE_URL=https://thesisguard.kingheung.com` (host only).
+2. Set the build variable `VITE_API_BASE_URL=https://your-domain.com` (host only).
 3. Container Port `80`.
-4. Domain `thesisguard.kingheung.com`, Path `/`, HTTPS on.
+4. Domain `your-domain.com`, Path `/`, HTTPS on.
 5. Deploy.
 
-Then open `https://thesisguard.kingheung.com` — the SPA loads, and its `/api/...` calls hit the backend on the same origin.
+Then open `https://your-domain.com` — the SPA loads, and its `/api/...` calls hit the backend on the same origin.
 
 ## Example User Flow
 
