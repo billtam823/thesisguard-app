@@ -2,9 +2,7 @@ import {
   ArrowBack,
   AutoAwesome,
   ExpandMore,
-  FactCheck,
   OpenInNew,
-  Refresh,
 } from "@mui/icons-material";
 import {
   Accordion,
@@ -16,9 +14,9 @@ import {
   Chip,
   LinearProgress,
   Link,
+  MenuItem,
   Stack,
-  Tab,
-  Tabs,
+  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -71,19 +69,14 @@ const watchFields: Array<[keyof StockThesis, string]> = [
   ["daily_review_focus", "Daily Review Focus"],
 ];
 
-type FeedTab = "all" | "material" | "noise" | "unrelated" | "pending";
-
-// Classify a saved item from its persisted review outcome: pending (not yet reviewed),
-// unrelated (reviewed but judged not about this stock), or noise/material by impact level.
-function classifyItem(item: NewsItem): Exclude<FeedTab, "all"> {
-  if (!item.reviewed_at) {
-    return "pending";
-  }
-  if (item.related_to_stock === false) {
-    return "unrelated";
-  }
-  const normalized = (item.impact_level || "").toLowerCase();
-  return normalized === "" || normalized === "noise" || normalized === "none" ? "noise" : "material";
+// Rank a reviewed item by impact so the most material news sorts to the top of a review's list.
+function impactRank(item: NewsItem): number {
+  if (item.related_to_stock === false) return 0;
+  const n = (item.impact_level || "").toLowerCase();
+  if (n.includes("critical") || n.includes("broken")) return 4;
+  if (n.includes("material") || n.includes("major") || n.includes("high")) return 3;
+  if (n.includes("watch") || n.includes("minor") || n.includes("medium") || n.includes("low")) return 2;
+  return 1; // noise / none
 }
 
 function Section({
@@ -191,111 +184,49 @@ function ImpactChip({ level }: { level?: string | null }) {
   );
 }
 
-function feedCounts(items: NewsItem[]) {
-  return {
-    all: items.length,
-    material: items.filter((item) => classifyItem(item) === "material").length,
-    noise: items.filter((item) => classifyItem(item) === "noise").length,
-    unrelated: items.filter((item) => classifyItem(item) === "unrelated").length,
-    pending: items.filter((item) => classifyItem(item) === "pending").length,
-  };
-}
-
-// A tabbed, classification-filtered list of saved items, reused by the News and Filings feeds.
-function NewsFeed({
-  items,
-  tab,
-  onTab,
-  isLoading,
-  isError,
-  error,
-  loadingText,
-  emptyTitle,
-  emptyMessage,
-}: {
-  items: NewsItem[];
-  tab: FeedTab;
-  onTab: (tab: FeedTab) => void;
-  isLoading: boolean;
-  isError: boolean;
-  error: unknown;
-  loadingText: string;
-  emptyTitle: string;
-  emptyMessage: string;
-}) {
-  const counts = feedCounts(items);
-  const visible = tab === "all" ? items : items.filter((item) => classifyItem(item) === tab);
+// A flat list of saved news/filing item cards, scoped to a single review by the caller.
+function NewsItemList({ items, emptyTitle, emptyMessage }: { items: NewsItem[]; emptyTitle: string; emptyMessage: string }) {
+  if (items.length === 0) {
+    return <EmptyState title={emptyTitle} message={emptyMessage} />;
+  }
   return (
-    <Stack spacing={2.5}>
-      <Box sx={{ borderBottom: `1px solid ${hairline}` }}>
-        <Tabs
-          value={tab}
-          onChange={(_, value: FeedTab) => onTab(value)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{ minHeight: 0, "& .MuiTab-root": { minHeight: 0, py: 1.25, fontFamily: mono, fontWeight: 600, letterSpacing: "0.04em", textTransform: "none" } }}
-        >
-          <Tab value="all" label={`All · ${counts.all}`} />
-          <Tab value="material" label={`Material · ${counts.material}`} />
-          <Tab value="noise" label={`Noise · ${counts.noise}`} />
-          <Tab value="unrelated" label={`Unrelated · ${counts.unrelated}`} />
-          <Tab value="pending" label={`Pending · ${counts.pending}`} />
-        </Tabs>
-      </Box>
-
-      {isLoading && <LoadingState text={loadingText} />}
-      {isError && <ErrorState error={error} />}
-      {!isLoading && items.length === 0 && <EmptyState title={emptyTitle} message={emptyMessage} />}
-      {!isLoading && items.length > 0 && visible.length === 0 && (
-        <EmptyState title="Nothing here" message={`No ${tab} items right now.`} />
-      )}
-
-      {visible.length > 0 && (
-        <Stack spacing={0} sx={{ border: `1px solid ${hairline}`, borderRadius: 2, overflow: "hidden", bgcolor: "#fff" }}>
-          {visible.map((item, i) => (
-            <Box key={item.id} sx={{ p: 2.25, borderBottom: i < visible.length - 1 ? `1px solid ${hairline}` : "none" }}>
-              <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontFamily: serif, fontWeight: 700, fontSize: 16, lineHeight: 1.35, color: ink }}>{item.title}</Typography>
-                  <Typography sx={{ fontFamily: mono, fontSize: 11.5, color: "#8a93a8", mt: 0.5 }}>
-                    filed {item.published_date || "unknown date"}
-                    {item.source ? ` · ${item.source}` : ""}
+    <Stack spacing={0} sx={{ border: `1px solid ${hairline}`, borderRadius: 2, overflow: "hidden", bgcolor: "#fff" }}>
+      {items.map((item, i) => (
+        <Box key={item.id} sx={{ p: 2.25, borderBottom: i < items.length - 1 ? `1px solid ${hairline}` : "none" }}>
+          <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontFamily: serif, fontWeight: 700, fontSize: 16, lineHeight: 1.35, color: ink }}>{item.title}</Typography>
+              <Typography sx={{ fontFamily: mono, fontSize: 11.5, color: "#8a93a8", mt: 0.5 }}>
+                filed {item.published_date || "unknown date"}
+                {item.source ? ` · ${item.source}` : ""}
+              </Typography>
+              {item.summary && <Typography sx={{ mt: 1, fontSize: 14, lineHeight: 1.6, color: "#3a4356" }}>{item.summary}</Typography>}
+              {item.analysis && (
+                <Box sx={{ mt: 1, pl: 1.5, borderLeft: `3px solid ${hairline}` }}>
+                  <Typography sx={{ fontFamily: mono, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8a93a8", mb: 0.25 }}>
+                    Review note
                   </Typography>
-                  {item.summary && <Typography sx={{ mt: 1, fontSize: 14, lineHeight: 1.6, color: "#3a4356" }}>{item.summary}</Typography>}
-                  {item.analysis && (
-                    <Box sx={{ mt: 1, pl: 1.5, borderLeft: `3px solid ${hairline}` }}>
-                      <Typography sx={{ fontFamily: mono, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8a93a8", mb: 0.25 }}>
-                        Review note
-                      </Typography>
-                      <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: "#3a4356" }}>{item.analysis}</Typography>
-                    </Box>
-                  )}
-                  {item.url && (
-                    <Link href={item.url} target="_blank" rel="noreferrer" sx={{ fontFamily: mono, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 0.5, mt: 0.75 }}>
-                      Read source <OpenInNew sx={{ fontSize: 13 }} />
-                    </Link>
-                  )}
+                  <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: "#3a4356" }}>{item.analysis}</Typography>
                 </Box>
-                {item.reviewed_at ? (
-                  <Tooltip title={`Reviewed ${formatLocal(item.reviewed_at)}`}>
-                    <Box sx={{ flexShrink: 0 }}>
-                      {item.related_to_stock === false ? (
-                        <Chip size="small" label="Unrelated" variant="outlined" sx={{ fontFamily: mono, fontWeight: 600, letterSpacing: "0.04em", flexShrink: 0, color: "#8a93a8", borderColor: hairline }} />
-                      ) : (
-                        <ImpactChip level={item.impact_level || "Reviewed"} />
-                      )}
-                    </Box>
-                  </Tooltip>
-                ) : (
-                  <Tooltip title="Will be included in the next review">
-                    <Chip size="small" label="Pending review" color="primary" sx={{ fontFamily: mono, fontWeight: 600, flexShrink: 0 }} />
-                  </Tooltip>
-                )}
-              </Stack>
+              )}
+              {item.url && (
+                <Link href={item.url} target="_blank" rel="noreferrer" sx={{ fontFamily: mono, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 0.5, mt: 0.75 }}>
+                  Read source <OpenInNew sx={{ fontSize: 13 }} />
+                </Link>
+              )}
             </Box>
-          ))}
-        </Stack>
-      )}
+            <Tooltip title={item.reviewed_at ? `Reviewed ${formatLocal(item.reviewed_at)}` : "Pending review"}>
+              <Box sx={{ flexShrink: 0 }}>
+                {item.related_to_stock === false ? (
+                  <Chip size="small" label="Unrelated" variant="outlined" sx={{ fontFamily: mono, fontWeight: 600, letterSpacing: "0.04em", flexShrink: 0, color: "#8a93a8", borderColor: hairline }} />
+                ) : (
+                  <ImpactChip level={item.impact_level || "Reviewed"} />
+                )}
+              </Box>
+            </Tooltip>
+          </Stack>
+        </Box>
+      ))}
     </Stack>
   );
 }
@@ -305,8 +236,7 @@ export function StockDetailPage() {
   const queryClient = useQueryClient();
   const stockCodeParam = useParams().stockCode;
   const stockCode = stockCodeParam?.toUpperCase() ?? "";
-  const [newsTab, setNewsTab] = useState<FeedTab>("all");
-  const [filingTab, setFilingTab] = useState<FeedTab>("all");
+  const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
 
   const stockQuery = useQuery({
     queryKey: ["stock", stockCode],
@@ -324,7 +254,7 @@ export function StockDetailPage() {
     refetchInterval: (query) => query.state.data?.generation_status === "RUNNING" ? 3000 : false,
   });
   const newsQuery = useQuery({ queryKey: ["news", stockCode], queryFn: () => newsApi.getNews(stockCode), enabled: Boolean(stockCode) });
-  const reviewQuery = useQuery({ queryKey: ["latest-review", stockCode], queryFn: () => reviewApi.getLatestReview(stockCode), enabled: Boolean(stockCode), retry: false });
+  const reviewsQuery = useQuery({ queryKey: ["daily-reviews", stockCode], queryFn: () => reviewApi.getDailyReviews(stockCode), enabled: Boolean(stockCode), retry: false });
   const memoryQuery = useQuery({ queryKey: ["monitor-memory", stockCode], queryFn: () => reviewApi.getMonitorMemory(stockCode), enabled: Boolean(stockCode), retry: false });
   const alertsQuery = useQuery({ queryKey: ["stock-alerts", stockCode], queryFn: () => alertApi.getStockAlerts(stockCode), enabled: Boolean(stockCode) });
 
@@ -336,16 +266,9 @@ export function StockDetailPage() {
     },
   });
 
-  const ingestNews = useMutation({
-    mutationFn: () => newsApi.ingestNews(stockCode),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["news", stockCode] });
-    },
-  });
-
   const invalidateAfterReview = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["latest-review", stockCode] }),
+      queryClient.invalidateQueries({ queryKey: ["daily-reviews", stockCode] }),
       queryClient.invalidateQueries({ queryKey: ["monitor-memory", stockCode] }),
       queryClient.invalidateQueries({ queryKey: ["news", stockCode] }),
       queryClient.invalidateQueries({ queryKey: ["stock", stockCode] }),
@@ -353,11 +276,6 @@ export function StockDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] }),
     ]);
   };
-
-  const reviewNews = useMutation({
-    mutationFn: () => reviewApi.reviewNews(stockCode),
-    onSuccess: invalidateAfterReview,
-  });
 
   const autoReview = useMutation({
     mutationFn: () => reviewApi.autoReview(stockCode),
@@ -379,6 +297,7 @@ export function StockDetailPage() {
     const curr = stockQuery.data?.review_status;
     if (prev === "RUNNING" && curr !== "RUNNING") {
       invalidateAfterReview();
+      setSelectedReviewId(null); // jump to the newest (just-completed) review
     }
     prevReviewStatusRef.current = curr;
   }, [stockQuery.data?.review_status]);
@@ -395,12 +314,15 @@ export function StockDetailPage() {
 
   const isReviewing = autoReview.isPending || stockQuery.data?.review_status === "RUNNING";
   const news = newsQuery.data ?? [];
-  const pendingNewsCount = news.filter((item) => !item.reviewed_at).length;
   // SEC 8-K filings and Form 4 insider trades are ingested with source "SEC EDGAR"; everything
   // else (headlines, manually saved items) is news.
   const isFiling = (item: NewsItem) => (item.source || "").toUpperCase().includes("SEC EDGAR");
-  const newsItems = news.filter((item) => !isFiling(item));
-  const filingItems = news.filter((item) => isFiling(item));
+  const reviews = reviewsQuery.data ?? [];
+  const selectedReview = reviews.find((r) => r.id === selectedReviewId) ?? reviews[0] ?? null;
+  const reviewItemIds = new Set((selectedReview?.news_analysis ?? []).map((a) => a.news_item_id));
+  const reviewNewsItems = news.filter((item) => reviewItemIds.has(item.id)).sort((a, b) => impactRank(b) - impactRank(a));
+  const scopedNews = reviewNewsItems.filter((item) => !isFiling(item));
+  const scopedFilings = reviewNewsItems.filter((item) => isFiling(item));
 
   if (stockQuery.isLoading) {
     return <LoadingState text="Loading stock..." />;
@@ -413,7 +335,6 @@ export function StockDetailPage() {
   const stock = stockQuery.data;
   const thesis = thesisQuery.data;
   const isGenerating = generateThesis.isPending || thesis?.generation_status === "RUNNING";
-  const review = reviewQuery.data;
   const memory = memoryQuery.data;
   const alerts = alertsQuery.data ?? [];
 
@@ -625,114 +546,106 @@ export function StockDetailPage() {
       <Section
         index="02"
         title="Daily Review"
-        subtitle="The thesis-level verdict on the saved news — per-article classification appears in News & Filings below"
+        subtitle="The thesis-level verdict on each batch of reviewed news. Pick a past review to revisit it."
         action={
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <Button
-              startIcon={<FactCheck />}
-              variant="outlined"
-              onClick={() => reviewNews.mutate()}
-              disabled={reviewNews.isPending || isReviewing || !thesis}
-            >
-              {reviewNews.isPending ? "Reviewing…" : `Review Pending${pendingNewsCount > 0 ? ` (${pendingNewsCount})` : ""}`}
-            </Button>
-            <Button
-              startIcon={<AutoAwesome />}
-              variant="contained"
-              onClick={() => autoReview.mutate()}
-              disabled={isReviewing || reviewNews.isPending || !thesis}
-            >
-              {isReviewing ? "Auto reviewing…" : "Auto Review"}
-            </Button>
-          </Stack>
+          <Button
+            startIcon={<AutoAwesome />}
+            variant="contained"
+            onClick={() => autoReview.mutate()}
+            disabled={isReviewing || !thesis}
+          >
+            {isReviewing ? "Auto reviewing…" : "Auto Review"}
+          </Button>
         }
       >
         <Stack spacing={2.5}>
-          {(reviewNews.isPending || isReviewing) && <LinearProgress sx={{ borderRadius: 1 }} />}
+          {isReviewing && <LinearProgress sx={{ borderRadius: 1 }} />}
           {isReviewing && (
-            <Alert severity="info">Reviewing in background — you can leave this page and come back.</Alert>
+            <Alert severity="info">Reviewing in background — fetching the latest news and assessing it against your thesis. You can leave this page and come back.</Alert>
           )}
           {stock?.review_status === "FAILED" && (
             <Alert severity="error">The background review failed. Check server logs for details, then try again.</Alert>
           )}
           {!thesis && <Alert severity="warning">Generate and save a buy thesis first — the review compares news against it.</Alert>}
-          {thesis && !isReviewing && (
-            <Alert severity="info">
-              {pendingNewsCount > 0
-                ? `${pendingNewsCount} saved item${pendingNewsCount === 1 ? "" : "s"} awaiting review. Auto Review also pulls in any fresh news first.`
-                : "No unreviewed news is on file. Auto Review will fetch the latest news and review anything new; Review Pending alone would record \"No News Found\"."}
-            </Alert>
-          )}
-          {autoReview.isSuccess && (
-            <Alert severity="success">
-              {autoReview.data.review
-                ? `Auto Review saved ${autoReview.data.new_items_count} new item${autoReview.data.new_items_count === 1 ? "" : "s"} and reviewed the pending backlog.`
-                : `Fetched ${autoReview.data.new_items_count} new item${autoReview.data.new_items_count === 1 ? "" : "s"} — review is running in the background.`}
-            </Alert>
-          )}
-          {reviewNews.isError && <ErrorState error={reviewNews.error} />}
           {autoReview.isError && <ErrorState error={autoReview.error} />}
 
-          {reviewQuery.isLoading && <LoadingState text="Loading latest review..." />}
-          {!reviewQuery.isLoading && !review && (
-            <EmptyState title="No review yet" message="Run the first daily review once a thesis and today's news are in place." />
+          {reviewsQuery.isLoading && <LoadingState text="Loading reviews..." />}
+          {!reviewsQuery.isLoading && reviews.length === 0 && (
+            <EmptyState title="No review yet" message="Run Auto Review — it fetches the latest news and assesses it against your thesis." />
           )}
 
-          {review && (
-            <Box sx={{ border: `1px solid ${hairline}`, borderRadius: 2, overflow: "hidden", bgcolor: "#fff" }}>
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                justifyContent="space-between"
-                alignItems={{ xs: "flex-start", sm: "center" }}
-                spacing={1.5}
-                sx={{ px: 3, py: 2, bgcolor: "#fafbfd", borderBottom: `1px solid ${hairline}` }}
+          {selectedReview && (
+            <>
+              <TextField
+                select
+                size="small"
+                label="Review"
+                value={selectedReview.id}
+                onChange={(event) => setSelectedReviewId(Number(event.target.value))}
+                sx={{ maxWidth: 380 }}
               >
-                <Typography sx={{ fontFamily: mono, fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "#8a93a8" }}>
-                  Latest review · {formatLocal(review.created_at)}
-                </Typography>
-                <ChangeLevelChip level={review.thesis_change_level} />
-              </Stack>
+                {reviews.map((r) => (
+                  <MenuItem key={r.id} value={r.id}>
+                    {formatLocal(r.created_at)} · {r.thesis_change_level}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-              <Box sx={{ mx: 3, mt: 2.5, px: 2.5, py: 2, bgcolor: "#f2f5fb", borderLeft: `4px solid ${ink}`, borderRadius: "0 8px 8px 0" }}>
-                <FieldLabel>Recommended Action</FieldLabel>
-                {(() => {
-                  const actions = (review.recommended_action || "")
-                    .split(/\r?\n/)
-                    .map((line) => line.trim())
-                    .filter(Boolean);
-                  if (actions.length <= 1) {
+              <Box sx={{ border: `1px solid ${hairline}`, borderRadius: 2, overflow: "hidden", bgcolor: "#fff" }}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  justifyContent="space-between"
+                  alignItems={{ xs: "flex-start", sm: "center" }}
+                  spacing={1.5}
+                  sx={{ px: 3, py: 2, bgcolor: "#fafbfd", borderBottom: `1px solid ${hairline}` }}
+                >
+                  <Typography sx={{ fontFamily: mono, fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "#8a93a8" }}>
+                    Review · {formatLocal(selectedReview.created_at)}
+                  </Typography>
+                  <ChangeLevelChip level={selectedReview.thesis_change_level} />
+                </Stack>
+
+                <Box sx={{ mx: 3, mt: 2.5, px: 2.5, py: 2, bgcolor: "#f2f5fb", borderLeft: `4px solid ${ink}`, borderRadius: "0 8px 8px 0" }}>
+                  <FieldLabel>Recommended Action</FieldLabel>
+                  {(() => {
+                    const actions = (selectedReview.recommended_action || "")
+                      .split(/\r?\n/)
+                      .map((line) => line.trim())
+                      .filter(Boolean);
+                    if (actions.length <= 1) {
+                      return (
+                        <Typography sx={{ fontFamily: serif, fontWeight: 600, fontSize: 16.5, lineHeight: 1.5, color: ink }}>
+                          {actions[0] || "—"}
+                        </Typography>
+                      );
+                    }
                     return (
-                      <Typography sx={{ fontFamily: serif, fontWeight: 600, fontSize: 16.5, lineHeight: 1.5, color: ink }}>
-                        {actions[0] || "—"}
-                      </Typography>
+                      <Stack component="ul" spacing={0.75} sx={{ m: 0, pl: 0, listStyle: "none" }}>
+                        {actions.map((action, i) => (
+                          <Stack component="li" key={i} direction="row" spacing={1.25} alignItems="baseline">
+                            <Typography sx={{ fontFamily: mono, fontSize: 11, fontWeight: 600, color: "#8a93a8", flexShrink: 0 }}>
+                              {String(i + 1).padStart(2, "0")}
+                            </Typography>
+                            <Typography sx={{ fontFamily: serif, fontWeight: 600, fontSize: 15.5, lineHeight: 1.5, color: ink }}>
+                              {action}
+                            </Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
                     );
-                  }
-                  return (
-                    <Stack component="ul" spacing={0.75} sx={{ m: 0, pl: 0, listStyle: "none" }}>
-                      {actions.map((action, i) => (
-                        <Stack component="li" key={i} direction="row" spacing={1.25} alignItems="baseline">
-                          <Typography sx={{ fontFamily: mono, fontSize: 11, fontWeight: 600, color: "#8a93a8", flexShrink: 0 }}>
-                            {String(i + 1).padStart(2, "0")}
-                          </Typography>
-                          <Typography sx={{ fontFamily: serif, fontWeight: 600, fontSize: 15.5, lineHeight: 1.5, color: ink }}>
-                            {action}
-                          </Typography>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  );
-                })()}
-              </Box>
+                  })()}
+                </Box>
 
-              <Box sx={{ px: 3, py: 2.5 }}>
-                <FieldLabel>Summary</FieldLabel>
-                <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7, color: "#2c3548" }}>{review.summary}</Typography>
-                <Box sx={{ mt: 2.5 }}>
-                  <FieldLabel>Thesis Impact</FieldLabel>
-                  <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7, color: "#2c3548" }}>{review.thesis_impact}</Typography>
+                <Box sx={{ px: 3, py: 2.5 }}>
+                  <FieldLabel>Summary</FieldLabel>
+                  <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7, color: "#2c3548" }}>{selectedReview.summary}</Typography>
+                  <Box sx={{ mt: 2.5 }}>
+                    <FieldLabel>Thesis Impact</FieldLabel>
+                    <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7, color: "#2c3548" }}>{selectedReview.thesis_impact}</Typography>
+                  </Box>
                 </Box>
               </Box>
-            </Box>
+            </>
           )}
 
           {/* Monitoring journal — the AI's accumulated memory across reviews */}
@@ -760,58 +673,38 @@ export function StockDetailPage() {
       <Section
         index="03"
         title="News"
-        subtitle="Fetch pulls the latest headlines (and filings) straight into the review backlog. Each item is classified by the daily review."
-        action={
-          <Button
-            startIcon={<Refresh />}
-            variant="contained"
-            onClick={() => ingestNews.mutate()}
-            disabled={ingestNews.isPending || !stockCode}
-          >
-            {ingestNews.isPending ? "Fetching…" : "Fetch Latest"}
-          </Button>
-        }
+        subtitle="Headlines included in the selected review."
       >
-        <Stack spacing={2.5}>
-          {ingestNews.isPending && <LinearProgress sx={{ borderRadius: 1 }} />}
-          {ingestNews.isError && <ErrorState error={ingestNews.error} />}
-          {ingestNews.isSuccess && (
-            <Alert severity="success">
-              Fetched {ingestNews.data.new_items_count} new item{ingestNews.data.new_items_count === 1 ? "" : "s"} into the review backlog.
-            </Alert>
-          )}
-
-          <NewsFeed
-            items={newsItems}
-            tab={newsTab}
-            onTab={setNewsTab}
-            isLoading={newsQuery.isLoading}
-            isError={newsQuery.isError}
-            error={newsQuery.error}
-            loadingText="Loading news..."
-            emptyTitle="No news on file"
-            emptyMessage="Fetch the latest news — it goes straight into the backlog and is classified on the next daily review."
+        {newsQuery.isLoading ? (
+          <LoadingState text="Loading news..." />
+        ) : newsQuery.isError ? (
+          <ErrorState error={newsQuery.error} />
+        ) : (
+          <NewsItemList
+            items={scopedNews}
+            emptyTitle="No news in this review"
+            emptyMessage="This review included no headlines. Run Auto Review to pull and assess the latest news."
           />
-        </Stack>
+        )}
       </Section>
 
       {/* ── 04 · Filings ─────────────────────────────────────────── */}
       <Section
         index="04"
         title="Filings"
-        subtitle="SEC 8-K filings and Form 4 insider trades from EDGAR, classified by the daily review"
+        subtitle="SEC 8-K filings and Form 4 insider trades included in the selected review."
       >
-        <NewsFeed
-          items={filingItems}
-          tab={filingTab}
-          onTab={setFilingTab}
-          isLoading={newsQuery.isLoading}
-          isError={newsQuery.isError}
-          error={newsQuery.error}
-          loadingText="Loading filings..."
-          emptyTitle="No filings on file"
-          emptyMessage="Fetch the latest — SEC 8-K filings and insider trades for US-listed stocks land here automatically."
-        />
+        {newsQuery.isLoading ? (
+          <LoadingState text="Loading filings..." />
+        ) : newsQuery.isError ? (
+          <ErrorState error={newsQuery.error} />
+        ) : (
+          <NewsItemList
+            items={scopedFilings}
+            emptyTitle="No filings in this review"
+            emptyMessage="This review included no SEC filings or insider trades."
+          />
+        )}
       </Section>
 
       {/* ── 05 · Alerts ──────────────────────────────────────────── */}
