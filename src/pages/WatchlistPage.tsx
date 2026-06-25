@@ -1,4 +1,4 @@
-import { Add, DeleteOutline, Refresh } from "@mui/icons-material";
+import { Add, ArrowForward, DeleteOutline } from "@mui/icons-material";
 import {
   Button,
   Card,
@@ -29,17 +29,6 @@ export function WatchlistPage() {
   const queryClient = useQueryClient();
   const stocksQuery = useQuery({ queryKey: ["stocks"], queryFn: stockApi.getStocks });
   const [pendingRemoval, setPendingRemoval] = useState<Stock | null>(null);
-  const [refreshingId, setRefreshingId] = useState<number | null>(null);
-
-  const refreshProfile = useMutation({
-    mutationFn: (stockCode: string) => stockApi.refreshProfile(stockCode),
-    onMutate: (stockCode) => {
-      const stock = stocksQuery.data?.find((s) => s.stock_code === stockCode);
-      if (stock) setRefreshingId(stock.id);
-    },
-    onSettled: () => setRefreshingId(null),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["stocks"] }),
-  });
 
   const removeStock = useMutation({
     mutationFn: (stockCode: string) => stockApi.deleteStock(stockCode),
@@ -75,7 +64,22 @@ export function WatchlistPage() {
         <Grid container spacing={2}>
           {stocksQuery.data?.map((stock) => (
             <Grid item xs={12} md={6} lg={4} key={stock.id}>
-              <Card variant="outlined" sx={{ borderRadius: 2, height: "100%", display: "flex", flexDirection: "column" }}>
+              <Card
+                variant="outlined"
+                sx={{
+                  borderRadius: 2,
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  transition: "transform .15s ease, box-shadow .15s ease, border-color .15s ease",
+                  "&:hover": {
+                    borderColor: "primary.main",
+                    boxShadow: "0 6px 20px rgba(36, 84, 166, 0.15)",
+                    transform: "translateY(-2px)",
+                  },
+                  "&:hover .view-details-arrow": { transform: "translateX(3px)" },
+                }}
+              >
                 <CardActionArea sx={{ flexGrow: 1 }} onClick={() => navigate(`/stocks/${stock.stock_code}`)}>
                   <CardContent>
                     <Stack spacing={2}>
@@ -95,11 +99,10 @@ export function WatchlistPage() {
                 <CardActions sx={{ justifyContent: "space-between", px: 2, pb: 1.5, pt: 0 }}>
                   <Button
                     size="small"
-                    startIcon={<Refresh />}
-                    onClick={() => refreshProfile.mutate(stock.stock_code)}
-                    disabled={refreshingId === stock.id}
+                    endIcon={<ArrowForward className="view-details-arrow" sx={{ transition: "transform .15s ease" }} />}
+                    onClick={() => navigate(`/stocks/${stock.stock_code}`)}
                   >
-                    {refreshingId === stock.id ? "Refreshing…" : "Refresh Profile"}
+                    View details
                   </Button>
                   <Button
                     size="small"
