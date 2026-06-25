@@ -42,10 +42,18 @@ const hairline = "#dde3ee";
 
 // Backend serializes timestamps as zone-less LocalDateTime in UTC (the server runs UTC), which the
 // browser would otherwise read as local time. Mark them UTC so they render in the viewer's own zone.
-function formatLocal(iso?: string | null) {
-  if (!iso) return "—";
+function toLocalDate(iso?: string | null): Date | null {
+  if (!iso) return null;
   const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso);
-  return new Date(hasZone ? iso : `${iso}Z`).toLocaleString();
+  return new Date(hasZone ? iso : `${iso}Z`);
+}
+function formatLocal(iso?: string | null) {
+  const d = toLocalDate(iso);
+  return d ? d.toLocaleString() : "—";
+}
+function formatLocalDate(iso?: string | null) {
+  const d = toLocalDate(iso);
+  return d ? d.toLocaleDateString() : "—";
 }
 
 const verdictFields: Array<[keyof StockThesis, string]> = [
@@ -373,7 +381,7 @@ export function StockDetailPage() {
             <Stack spacing={1} alignItems={{ xs: "flex-start", md: "flex-end" }}>
               <StatusChip status={stock?.status} />
               <Typography sx={{ fontFamily: mono, fontSize: 12, color: "rgba(244,246,251,0.55)" }}>
-                on watch since {stock?.created_at ? new Date(stock.created_at).toLocaleDateString() : "—"}
+                on watch since {formatLocalDate(stock?.created_at)}
               </Typography>
             </Stack>
           </Stack>
@@ -657,7 +665,7 @@ export function StockDetailPage() {
                     Monitoring Journal — what the AI remembers
                   </Typography>
                   <Typography sx={{ fontFamily: mono, fontSize: 11, color: "#8a93a8" }}>
-                    updated {new Date(memory.updated_at).toLocaleString()}
+                    updated {formatLocal(memory.updated_at)}
                   </Typography>
                 </Stack>
               </AccordionSummary>
