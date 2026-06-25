@@ -44,6 +44,7 @@ export type StockThesis = {
   daily_review_focus: string;
   return_multiple?: string | null;
   return_basis?: string | null;
+  position_guidance?: string | null;
   generation_status?: "RUNNING" | "DONE" | "FAILED" | null;
   generation_error?: string | null;
   created_at: string;

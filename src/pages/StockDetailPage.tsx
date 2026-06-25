@@ -450,6 +450,7 @@ export function StockDetailPage() {
           </Stack>
 
           {thesis && (
+            <>
             <Box
               sx={{
                 mt: 3.5,
@@ -465,12 +466,23 @@ export function StockDetailPage() {
                   <Typography sx={{ fontFamily: mono, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(244,246,251,0.5)" }}>
                     {label}
                   </Typography>
-                  <Typography sx={{ fontFamily: serif, fontWeight: 700, fontSize: { xs: 20, sm: 24 }, lineHeight: 1.2, mt: 0.5 }}>
+                  <Typography sx={{ fontFamily: serif, fontWeight: 700, fontSize: { xs: 20, sm: 24 }, lineHeight: 1.2, mt: 0.5, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                     {String(thesis[key] || "—")}
                   </Typography>
                 </Box>
               ))}
             </Box>
+            {thesis.position_guidance && (
+              <Box sx={{ mt: 3, pt: 2.5, borderTop: "1px solid rgba(255,255,255,0.18)" }}>
+                <Typography sx={{ fontFamily: mono, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(244,246,251,0.5)", mb: 0.75 }}>
+                  Position &amp; Advice
+                </Typography>
+                <Typography sx={{ fontFamily: serif, fontSize: { xs: 15, sm: 16.5 }, lineHeight: 1.6, color: "rgba(244,246,251,0.92)", whiteSpace: "pre-wrap" }}>
+                  {thesis.position_guidance}
+                </Typography>
+              </Box>
+            )}
+            </>
           )}
         </Box>
       </Box>
