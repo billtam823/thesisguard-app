@@ -623,7 +623,7 @@ export function StockDetailPage() {
                     if (actions.length <= 1) {
                       return (
                         <Typography sx={{ fontFamily: serif, fontWeight: 600, fontSize: 16.5, lineHeight: 1.5, color: ink }}>
-                          {actions[0] || "—"}
+                          {actions[0] || "Continue holding current status; no action required from today's news."}
                         </Typography>
                       );
                     }
