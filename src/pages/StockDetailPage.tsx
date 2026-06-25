@@ -42,6 +42,14 @@ const serif = '"Fraunces", Georgia, "Times New Roman", serif';
 const mono = '"IBM Plex Mono", Consolas, "Courier New", monospace';
 const hairline = "#dde3ee";
 
+// Backend serializes timestamps as zone-less LocalDateTime in UTC (the server runs UTC), which the
+// browser would otherwise read as local time. Mark them UTC so they render in the viewer's own zone.
+function formatLocal(iso?: string | null) {
+  if (!iso) return "—";
+  const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasZone ? iso : `${iso}Z`).toLocaleString();
+}
+
 const verdictFields: Array<[keyof StockThesis, string]> = [
   ["final_rating", "Final Rating"],
   ["conviction", "Conviction"],
@@ -269,7 +277,7 @@ function NewsFeed({
                   )}
                 </Box>
                 {item.reviewed_at ? (
-                  <Tooltip title={`Reviewed ${new Date(item.reviewed_at).toLocaleString()}`}>
+                  <Tooltip title={`Reviewed ${formatLocal(item.reviewed_at)}`}>
                     <Box sx={{ flexShrink: 0 }}>
                       {item.related_to_stock === false ? (
                         <Chip size="small" label="Unrelated" variant="outlined" sx={{ fontFamily: mono, fontWeight: 600, letterSpacing: "0.04em", flexShrink: 0, color: "#8a93a8", borderColor: hairline }} />
@@ -491,7 +499,7 @@ export function StockDetailPage() {
       <Section
         index="01"
         title="Buy Thesis"
-        subtitle={thesis && thesis.generation_status !== "RUNNING" ? `Last updated ${new Date(thesis.updated_at).toLocaleString()}` : "The standing case for owning this stock"}
+        subtitle={thesis && thesis.generation_status !== "RUNNING" ? `Last updated ${formatLocal(thesis.updated_at)}` : "The standing case for owning this stock"}
         action={
           <Button startIcon={<AutoAwesome />} variant="contained" onClick={() => generateThesis.mutate()} disabled={isGenerating}>
             {isGenerating ? "Generating…" : thesis ? "Regenerate Thesis" : "Generate Thesis"}
@@ -680,7 +688,7 @@ export function StockDetailPage() {
                 sx={{ px: 3, py: 2, bgcolor: "#fafbfd", borderBottom: `1px solid ${hairline}` }}
               >
                 <Typography sx={{ fontFamily: mono, fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "#8a93a8" }}>
-                  Latest review · {review.review_date}
+                  Latest review · {formatLocal(review.created_at)}
                 </Typography>
                 <ChangeLevelChip level={review.thesis_change_level} />
               </Stack>
