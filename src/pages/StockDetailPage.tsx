@@ -16,6 +16,8 @@ import {
   Link,
   MenuItem,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -85,6 +87,14 @@ function impactRank(item: NewsItem): number {
   if (n.includes("material") || n.includes("major") || n.includes("high")) return 3;
   if (n.includes("watch") || n.includes("minor") || n.includes("medium") || n.includes("low")) return 2;
   return 1; // noise / none
+}
+
+// Within a completed review every item is reviewed, so the type filter is material / noise / unrelated.
+type ReviewedTab = "all" | "material" | "noise" | "unrelated";
+function classifyReviewed(item: NewsItem): Exclude<ReviewedTab, "all"> {
+  if (item.related_to_stock === false) return "unrelated";
+  const n = (item.impact_level || "").toLowerCase();
+  return n === "" || n === "noise" || n === "none" ? "noise" : "material";
 }
 
 function Section({
@@ -235,6 +245,40 @@ function NewsItemList({ items, emptyTitle, emptyMessage }: { items: NewsItem[]; 
           </Stack>
         </Box>
       ))}
+    </Stack>
+  );
+}
+
+// Wraps NewsItemList with All / Material / Noise / Unrelated filter tabs over a review's items.
+function NewsTypeFeed({ items, emptyTitle, emptyMessage }: { items: NewsItem[]; emptyTitle: string; emptyMessage: string }) {
+  const [tab, setTab] = useState<ReviewedTab>("all");
+  if (items.length === 0) {
+    return <EmptyState title={emptyTitle} message={emptyMessage} />;
+  }
+  const counts = {
+    all: items.length,
+    material: items.filter((i) => classifyReviewed(i) === "material").length,
+    noise: items.filter((i) => classifyReviewed(i) === "noise").length,
+    unrelated: items.filter((i) => classifyReviewed(i) === "unrelated").length,
+  };
+  const visible = tab === "all" ? items : items.filter((i) => classifyReviewed(i) === tab);
+  return (
+    <Stack spacing={2.5}>
+      <Box sx={{ borderBottom: `1px solid ${hairline}` }}>
+        <Tabs
+          value={tab}
+          onChange={(_, value: ReviewedTab) => setTab(value)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ minHeight: 0, "& .MuiTab-root": { minHeight: 0, py: 1.25, fontFamily: mono, fontWeight: 600, letterSpacing: "0.04em", textTransform: "none" } }}
+        >
+          <Tab value="all" label={`All · ${counts.all}`} />
+          <Tab value="material" label={`Material · ${counts.material}`} />
+          <Tab value="noise" label={`Noise · ${counts.noise}`} />
+          <Tab value="unrelated" label={`Unrelated · ${counts.unrelated}`} />
+        </Tabs>
+      </Box>
+      <NewsItemList items={visible} emptyTitle="Nothing here" emptyMessage={`No ${tab} items in this review.`} />
     </Stack>
   );
 }
@@ -688,7 +732,7 @@ export function StockDetailPage() {
         ) : newsQuery.isError ? (
           <ErrorState error={newsQuery.error} />
         ) : (
-          <NewsItemList
+          <NewsTypeFeed
             items={scopedNews}
             emptyTitle="No news in this review"
             emptyMessage="This review included no headlines. Run Auto Review to pull and assess the latest news."
@@ -707,7 +751,7 @@ export function StockDetailPage() {
         ) : newsQuery.isError ? (
           <ErrorState error={newsQuery.error} />
         ) : (
-          <NewsItemList
+          <NewsTypeFeed
             items={scopedFilings}
             emptyTitle="No filings in this review"
             emptyMessage="This review included no SEC filings or insider trades."
